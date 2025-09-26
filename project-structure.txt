@@ -1,0 +1,86 @@
+.
+├── README.md
+├── android
+│   ├── app
+│   │   ├── build.gradle
+│   │   ├── debug.keystore
+│   │   ├── proguard-rules.pro
+│   │   └── src
+│   ├── build.gradle
+│   ├── gradle
+│   │   └── wrapper
+│   ├── gradle.properties
+│   ├── gradlew
+│   ├── gradlew.bat
+│   └── settings.gradle
+├── app
+│   ├── _layout.tsx
+│   ├── chat.js
+│   ├── discover.js
+│   ├── explore.tsx
+│   ├── index.js
+│   ├── login.js
+│   ├── matches.js
+│   ├── modal.tsx
+│   ├── otp.js
+│   ├── profile.js
+│   ├── profilesetup.js
+│   ├── register.js
+│   └── welcome.js
+├── app.json
+├── assets
+│   └── images
+│       ├── android-icon-background.png
+│       ├── android-icon-foreground.png
+│       ├── android-icon-monochrome.png
+│       ├── favicon.png
+│       ├── icon.png
+│       ├── partial-react-logo.png
+│       ├── react-logo.png
+│       ├── react-logo@2x.png
+│       ├── react-logo@3x.png
+│       └── splash-icon.png
+├── components
+│   ├── external-link.tsx
+│   ├── haptic-tab.tsx
+│   ├── hello-wave.tsx
+│   ├── parallax-scroll-view.tsx
+│   ├── themed-text.tsx
+│   ├── themed-view.tsx
+│   └── ui
+│       ├── collapsible.tsx
+│       ├── icon-symbol.ios.tsx
+│       └── icon-symbol.tsx
+├── config.js
+├── constants
+│   ├── api.js
+│   └── theme.ts
+├── context
+│   └── AuthContext.js
+├── eslint.config.js
+├── expo-env.d.ts
+├── hooks
+│   ├── use-color-scheme.ts
+│   ├── use-color-scheme.web.ts
+│   └── use-theme-color.ts
+├── navigation
+├── package-lock.json
+├── package.json
+├── project-structure.txt
+├── scripts
+│   └── reset-project.js
+├── tsconfig.json
+├── utils
+│   └── emailValidation.js
+└── uwc-connect-backend
+    ├── constants
+    │   └── api.js
+    ├── downloaded-photo.jpg
+    ├── package-lock.json
+    ├── package.json
+    ├── s3-policy.json
+    ├── server.js
+    ├── test-email.js
+    └── test-image.jpg
+
+19 directories, 65 files

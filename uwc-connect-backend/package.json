@@ -1,0 +1,23 @@
+{
+  "name": "uwc-connect-backend",
+  "version": "1.0.0",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "NODE_ENV=development node server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1692.0",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.2",
+    "expo-router": "^6.0.1",
+    "express": "^4.18.2",
+    "file-type": "^21.0.0",
+    "mongoose": "^8.18.1",
+    "multer": "^2.0.2",
+    "nodemailer": "^6.9.4",
+    "react-native-deck-swiper": "^2.0.19"
+  }
+}
