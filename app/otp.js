@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
 import { useAuth } from '../context/AuthContext';
 
-const BASE_URL = "http://192.168.249.38:3000";
+const BASE_URL = "http://192.168.249.175:3000";
 
 export default function OTP() {
   const router = useRouter();

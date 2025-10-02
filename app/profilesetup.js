@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { useAuth } from '../context/AuthContext';
 
-const BASE_URL = "http://192.168.249.38:3000";
+const BASE_URL = "http://192.168.249.175:3000";
 
 export default function ProfileSetup() {
   const router = useRouter();
@@ -23,15 +23,15 @@ export default function ProfileSetup() {
   const { setUser } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [validationErrors, setValidationErrors] = useState({});
 
-  // Form state - with all original fields plus new ones
+  // Form state - with DOB removed
   const [formData, setFormData] = useState({
     name: "",
-    dateOfBirth: "",
     age: "",
-    bio: "", // NEW FIELD
+    bio: "",
     gender: [],
-    showGender: true, // NEW FIELD
+    showGender: true,
     interestedIn: [],
     universityPreferences: [],
     lookingFor: [],
@@ -59,7 +59,78 @@ export default function ProfileSetup() {
   const starSignOptions = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"];
   const interestOptions = ["Creativity", "Food & drinks", "Travel", "Sports", "Music", "Gaming", "Movies", "Tech", "Art", "Fitness", "Reading", "Photography"];
 
+  // Validation rules for each step
+  const validateStep = (step) => {
+    const errors = {};
+    
+    switch (step) {
+      case 1:
+        if (!formData.name.trim()) errors.name = "Name is required";
+        if (!formData.age.trim()) errors.age = "Age is required";
+        if (!formData.bio.trim()) errors.bio = "Bio is required";
+        break;
+      
+      case 2:
+        if (formData.gender.length === 0) errors.gender = "Please select at least one gender";
+        break;
+      
+      case 3:
+        if (formData.interestedIn.length === 0) errors.interestedIn = "Please select who you're interested in";
+        break;
+      
+      case 4:
+        if (formData.lookingFor.length === 0) errors.lookingFor = "Please select what you're looking for";
+        break;
+      
+      case 5:
+        if (!formData.university.trim()) errors.university = "University is required";
+        break;
+      
+      case 6:
+        if (!formData.drinking) errors.drinking = "Please select drinking frequency";
+        if (!formData.smoking) errors.smoking = "Please select smoking frequency";
+        if (!formData.exercise) errors.exercise = "Please select exercise preference";
+        if (!formData.pets) errors.pets = "Please select pets preference";
+        break;
+      
+      case 7:
+        if (!formData.communicationStyle) errors.communicationStyle = "Please select communication style";
+        if (!formData.loveLanguage) errors.loveLanguage = "Please select love language";
+        if (!formData.studyField.trim()) errors.studyField = "Field of study is required";
+        break;
+      
+      case 8:
+        if (formData.interests.length === 0) errors.interests = "Please select at least one interest";
+        break;
+      
+      case 9:
+        const photoCount = formData.photos.filter(p => p !== null).length;
+        if (photoCount < 1) errors.photos = "Please upload at least one photo";
+        break;
+      
+      default:
+        break;
+    }
+    
+    return errors;
+  };
+
   const handleNext = () => {
+    // Validate current step
+    const errors = validateStep(currentStep);
+    
+    if (Object.keys(errors).length > 0) {
+      // Show validation errors
+      setValidationErrors(errors);
+      
+      // Scroll to top to show errors
+      Alert.alert("Missing Information", "Please complete all required fields before proceeding.");
+      return;
+    }
+    
+    // Clear validation errors if step is valid
+    setValidationErrors({});
+    
     if (currentStep < 10) {
       setCurrentStep(currentStep + 1);
     } else {
@@ -68,6 +139,9 @@ export default function ProfileSetup() {
   };
 
   const handleBack = () => {
+    // Clear validation errors when going back
+    setValidationErrors({});
+    
     if (currentStep > 1) {
       setCurrentStep(currentStep - 1);
     }
@@ -82,9 +156,23 @@ export default function ProfileSetup() {
         return { ...prev, [field]: [...currentValues, value] };
       }
     });
+    
+    // Clear validation error for this field when user makes a selection
+    if (validationErrors[field]) {
+      setValidationErrors(prev => ({ ...prev, [field]: null }));
+    }
   };
 
-const pickImage = async (index) => {
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Clear validation error for this field when user starts typing
+    if (validationErrors[field]) {
+      setValidationErrors(prev => ({ ...prev, [field]: null }));
+    }
+  };
+
+  const pickImage = async (index) => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -103,6 +191,14 @@ const pickImage = async (index) => {
           name: `photo_${index}_${Date.now()}.jpg`,
         };
         setFormData({ ...formData, photos: newPhotos });
+        
+        // Clear photo validation error when user uploads at least one photo
+        if (validationErrors.photos) {
+          const photoCount = newPhotos.filter(p => p !== null).length;
+          if (photoCount >= 1) {
+            setValidationErrors(prev => ({ ...prev, photos: null }));
+          }
+        }
         
         console.log(`🔄 Updated photos array, index ${index} now has photo`);
       }
@@ -158,12 +254,13 @@ const pickImage = async (index) => {
       });
 
       console.log(`✅ Photos appended to FormData: ${photosAppended}`);
+      
 
       // Add other form data including new fields
       formDataToSend.append('name', formData.name);
       formDataToSend.append('surname', '');
-      formDataToSend.append('bio', formData.bio); // NEW
-      formDataToSend.append('showGender', formData.showGender.toString()); // NEW
+      formDataToSend.append('bio', formData.bio);
+      formDataToSend.append('showGender', formData.showGender.toString());
       formDataToSend.append('interests', formData.interests.join(','));
       formDataToSend.append('lookingFor', formData.lookingFor.join(','));
       formDataToSend.append('university', formData.university);
@@ -209,38 +306,14 @@ const pickImage = async (index) => {
     }
   };
 
-  // Test photo upload function
-  const testPhotoUpload = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
-    });
+  // Helper function to get input style based on validation
+  const getInputStyle = (fieldName) => {
+    return validationErrors[fieldName] ? [styles.input, styles.inputError] : styles.input;
+  };
 
-    if (!result.canceled) {
-      const testFormData = new FormData();
-      testFormData.append('photo', {
-        uri: result.assets[0].uri,
-        type: 'image/jpeg',
-        name: 'test-photo.jpg',
-      });
-
-      try {
-        const response = await fetch(`${BASE_URL}/test-s3`, {
-          method: 'POST',
-          body: testFormData,
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        });
-        const data = await response.json();
-        console.log('🧪 Test upload result:', data);
-        Alert.alert("Test Upload", JSON.stringify(data));
-      } catch (error) {
-        console.error('Test upload error:', error);
-        Alert.alert("Test Upload Error", error.message);
-      }
-    }
+  // Helper function to get option container style based on validation
+  const getOptionsContainerStyle = (fieldName) => {
+    return validationErrors[fieldName] ? [styles.optionsContainer, styles.optionsContainerError] : styles.optionsContainer;
   };
 
   const renderStep = () => {
@@ -252,41 +325,34 @@ const pickImage = async (index) => {
             <Text style={styles.subtitle}>Let's start with the basics</Text>
             
             <TextInput
-              placeholder="Full Name"
+              placeholder="Full Name *"
               placeholderTextColor="#888"
-              style={styles.input}
+              style={getInputStyle('name')}
               value={formData.name}
-              onChangeText={(text) => setFormData({ ...formData, name: text })}
+              onChangeText={(text) => handleInputChange('name', text)}
             />
-            
-            <TextInput
-              placeholder="Date of Birth (DD/MM/YYYY)"
-              placeholderTextColor="#888"
-              style={styles.input}
-              value={formData.dateOfBirth}
-              onChangeText={(text) => setFormData({ ...formData, dateOfBirth: text })}
-              keyboardType="numeric"
-            />
+            {validationErrors.name && <Text style={styles.errorText}>{validationErrors.name}</Text>}
 
             <TextInput
-              placeholder="Age"
+              placeholder="Age *"
               placeholderTextColor="#888"
-              style={styles.input}
+              style={getInputStyle('age')}
               value={formData.age}
-              onChangeText={(text) => setFormData({ ...formData, age: text })}
+              onChangeText={(text) => handleInputChange('age', text)}
               keyboardType="numeric"
             />
+            {validationErrors.age && <Text style={styles.errorText}>{validationErrors.age}</Text>}
 
-            {/* NEW BIO FIELD */}
             <TextInput
-              placeholder="Bio (Tell us about yourself)"
+              placeholder="Bio (Tell us about yourself) *"
               placeholderTextColor="#888"
-              style={[styles.input, { height: 100 }]}
+              style={[getInputStyle('bio'), { height: 100 }]}
               value={formData.bio}
-              onChangeText={(text) => setFormData({ ...formData, bio: text })}
+              onChangeText={(text) => handleInputChange('bio', text)}
               multiline
               textAlignVertical="top"
             />
+            {validationErrors.bio && <Text style={styles.errorText}>{validationErrors.bio}</Text>}
           </View>
         );
       
@@ -296,7 +362,7 @@ const pickImage = async (index) => {
             <Text style={styles.title}>What is your gender?</Text>
             <Text style={styles.subtitle}>Select all that describes you</Text>
             
-            <View style={styles.optionsContainer}>
+            <View style={getOptionsContainerStyle('gender')}>
               {genderOptions.map((option) => (
                 <TouchableOpacity
                   key={option}
@@ -315,8 +381,8 @@ const pickImage = async (index) => {
                 </TouchableOpacity>
               ))}
             </View>
+            {validationErrors.gender && <Text style={styles.errorText}>{validationErrors.gender}</Text>}
             
-            {/* NEW GENDER TOGGLE */}
             <View style={styles.toggleContainer}>
               <Text style={styles.toggleText}>Show gender on profile</Text>
               <Switch
@@ -335,7 +401,7 @@ const pickImage = async (index) => {
             <Text style={styles.title}>Who are you interested in seeing?</Text>
             <Text style={styles.subtitle}>Select all that applies</Text>
             
-            <View style={styles.optionsContainer}>
+            <View style={getOptionsContainerStyle('interestedIn')}>
               {interestedInOptions.map((option) => (
                 <TouchableOpacity
                   key={option}
@@ -354,6 +420,7 @@ const pickImage = async (index) => {
                 </TouchableOpacity>
               ))}
             </View>
+            {validationErrors.interestedIn && <Text style={styles.errorText}>{validationErrors.interestedIn}</Text>}
           </View>
         );
       
@@ -363,7 +430,7 @@ const pickImage = async (index) => {
             <Text style={styles.title}>What are you looking for?</Text>
             <Text style={styles.subtitle}>Select all that applies</Text>
             
-            <View style={styles.optionsContainer}>
+            <View style={getOptionsContainerStyle('lookingFor')}>
               {lookingForOptions.map((option) => (
                 <TouchableOpacity
                   key={option}
@@ -382,6 +449,7 @@ const pickImage = async (index) => {
                 </TouchableOpacity>
               ))}
             </View>
+            {validationErrors.lookingFor && <Text style={styles.errorText}>{validationErrors.lookingFor}</Text>}
           </View>
         );
       
@@ -392,12 +460,13 @@ const pickImage = async (index) => {
             <Text style={styles.subtitle}>Type your university name</Text>
             
             <TextInput
-              placeholder="University Name"
+              placeholder="University Name *"
               placeholderTextColor="#888"
-              style={styles.input}
+              style={getInputStyle('university')}
               value={formData.university}
-              onChangeText={(text) => setFormData({ ...formData, university: text })}
+              onChangeText={(text) => handleInputChange('university', text)}
             />
+            {validationErrors.university && <Text style={styles.errorText}>{validationErrors.university}</Text>}
           </View>
         );
       
@@ -407,8 +476,8 @@ const pickImage = async (index) => {
             <Text style={styles.title}>Lifestyle Habits</Text>
             <Text style={styles.subtitle}>Tell us about your lifestyle</Text>
             
-            <Text style={styles.sectionTitle}>How often do you drink?</Text>
-            <View style={styles.optionsContainer}>
+            <Text style={styles.sectionTitle}>How often do you drink? *</Text>
+            <View style={getOptionsContainerStyle('drinking')}>
               {frequencyOptions.map((option) => (
                 <TouchableOpacity
                   key={option}
@@ -416,7 +485,7 @@ const pickImage = async (index) => {
                     styles.optionButton,
                     formData.drinking === option && styles.optionButtonSelected
                   ]}
-                  onPress={() => setFormData({ ...formData, drinking: option })}
+                  onPress={() => handleInputChange('drinking', option)}
                 >
                   <Text style={[
                     styles.optionText,
@@ -427,9 +496,10 @@ const pickImage = async (index) => {
                 </TouchableOpacity>
               ))}
             </View>
+            {validationErrors.drinking && <Text style={styles.errorText}>{validationErrors.drinking}</Text>}
             
-            <Text style={styles.sectionTitle}>How often do you smoke?</Text>
-            <View style={styles.optionsContainer}>
+            <Text style={styles.sectionTitle}>How often do you smoke? *</Text>
+            <View style={getOptionsContainerStyle('smoking')}>
               {frequencyOptions.map((option) => (
                 <TouchableOpacity
                   key={option}
@@ -437,7 +507,7 @@ const pickImage = async (index) => {
                     styles.optionButton,
                     formData.smoking === option && styles.optionButtonSelected
                   ]}
-                  onPress={() => setFormData({ ...formData, smoking: option })}
+                  onPress={() => handleInputChange('smoking', option)}
                 >
                   <Text style={[
                     styles.optionText,
@@ -448,9 +518,10 @@ const pickImage = async (index) => {
                 </TouchableOpacity>
               ))}
             </View>
+            {validationErrors.smoking && <Text style={styles.errorText}>{validationErrors.smoking}</Text>}
             
-            <Text style={styles.sectionTitle}>Do you exercise regularly?</Text>
-            <View style={styles.optionsContainer}>
+            <Text style={styles.sectionTitle}>Do you exercise regularly? *</Text>
+            <View style={getOptionsContainerStyle('exercise')}>
               {yesNoOptions.map((option) => (
                 <TouchableOpacity
                   key={option}
@@ -458,7 +529,7 @@ const pickImage = async (index) => {
                     styles.optionButton,
                     formData.exercise === option && styles.optionButtonSelected
                   ]}
-                  onPress={() => setFormData({ ...formData, exercise: option })}
+                  onPress={() => handleInputChange('exercise', option)}
                 >
                   <Text style={[
                     styles.optionText,
@@ -469,9 +540,10 @@ const pickImage = async (index) => {
                 </TouchableOpacity>
               ))}
             </View>
+            {validationErrors.exercise && <Text style={styles.errorText}>{validationErrors.exercise}</Text>}
             
-            <Text style={styles.sectionTitle}>Do you have pets?</Text>
-            <View style={styles.optionsContainer}>
+            <Text style={styles.sectionTitle}>Do you have pets? *</Text>
+            <View style={getOptionsContainerStyle('pets')}>
               {yesNoOptions.map((option) => (
                 <TouchableOpacity
                   key={option}
@@ -479,7 +551,7 @@ const pickImage = async (index) => {
                     styles.optionButton,
                     formData.pets === option && styles.optionButtonSelected
                   ]}
-                  onPress={() => setFormData({ ...formData, pets: option })}
+                  onPress={() => handleInputChange('pets', option)}
                 >
                   <Text style={[
                     styles.optionText,
@@ -490,6 +562,7 @@ const pickImage = async (index) => {
                 </TouchableOpacity>
               ))}
             </View>
+            {validationErrors.pets && <Text style={styles.errorText}>{validationErrors.pets}</Text>}
           </View>
         );
       
@@ -499,8 +572,8 @@ const pickImage = async (index) => {
             <Text style={styles.title}>What else makes you, you?</Text>
             <Text style={styles.subtitle}>Help others get to know you better</Text>
             
-            <Text style={styles.sectionTitle}>What's your communication style?</Text>
-            <View style={styles.optionsContainer}>
+            <Text style={styles.sectionTitle}>What's your communication style? *</Text>
+            <View style={getOptionsContainerStyle('communicationStyle')}>
               {communicationOptions.map((option) => (
                 <TouchableOpacity
                   key={option}
@@ -508,7 +581,7 @@ const pickImage = async (index) => {
                     styles.optionButton,
                     formData.communicationStyle === option && styles.optionButtonSelected
                   ]}
-                  onPress={() => setFormData({ ...formData, communicationStyle: option })}
+                  onPress={() => handleInputChange('communicationStyle', option)}
                 >
                   <Text style={[
                     styles.optionText,
@@ -519,9 +592,10 @@ const pickImage = async (index) => {
                 </TouchableOpacity>
               ))}
             </View>
+            {validationErrors.communicationStyle && <Text style={styles.errorText}>{validationErrors.communicationStyle}</Text>}
             
-            <Text style={styles.sectionTitle}>How do you receive love?</Text>
-            <View style={styles.optionsContainer}>
+            <Text style={styles.sectionTitle}>How do you receive love? *</Text>
+            <View style={getOptionsContainerStyle('loveLanguage')}>
               {loveLanguageOptions.map((option) => (
                 <TouchableOpacity
                   key={option}
@@ -529,7 +603,7 @@ const pickImage = async (index) => {
                     styles.optionButton,
                     formData.loveLanguage === option && styles.optionButtonSelected
                   ]}
-                  onPress={() => setFormData({ ...formData, loveLanguage: option })}
+                  onPress={() => handleInputChange('loveLanguage', option)}
                 >
                   <Text style={[
                     styles.optionText,
@@ -540,15 +614,17 @@ const pickImage = async (index) => {
                 </TouchableOpacity>
               ))}
             </View>
+            {validationErrors.loveLanguage && <Text style={styles.errorText}>{validationErrors.loveLanguage}</Text>}
             
-            <Text style={styles.sectionTitle}>What are you studying?</Text>
+            <Text style={styles.sectionTitle}>What are you studying? *</Text>
             <TextInput
-              placeholder="Field of study"
+              placeholder="Field of study *"
               placeholderTextColor="#888"
-              style={styles.input}
+              style={getInputStyle('studyField')}
               value={formData.studyField}
-              onChangeText={(text) => setFormData({ ...formData, studyField: text })}
+              onChangeText={(text) => handleInputChange('studyField', text)}
             />
+            {validationErrors.studyField && <Text style={styles.errorText}>{validationErrors.studyField}</Text>}
             
             <Text style={styles.sectionTitle}>What is your star sign?</Text>
             <View style={styles.optionsContainer}>
@@ -579,7 +655,7 @@ const pickImage = async (index) => {
             <Text style={styles.title}>What are you into?</Text>
             <Text style={styles.subtitle}>Select your interests</Text>
             
-            <View style={styles.optionsContainer}>
+            <View style={getOptionsContainerStyle('interests')}>
               {interestOptions.map((option) => (
                 <TouchableOpacity
                   key={option}
@@ -598,6 +674,7 @@ const pickImage = async (index) => {
                 </TouchableOpacity>
               ))}
             </View>
+            {validationErrors.interests && <Text style={styles.errorText}>{validationErrors.interests}</Text>}
           </View>
         );
       
@@ -607,7 +684,7 @@ const pickImage = async (index) => {
             <Text style={styles.title}>Add your recent pictures</Text>
             <Text style={styles.subtitle}>Upload 6 photos to complete your profile</Text>
             
-            <View style={styles.photosContainer}>
+            <View style={validationErrors.photos ? [styles.photosContainer, styles.photosContainerError] : styles.photosContainer}>
               {[0, 1, 2, 3, 4, 5].map((index) => (
                 <TouchableOpacity 
                   key={index} 
@@ -630,18 +707,11 @@ const pickImage = async (index) => {
                 </TouchableOpacity>
               ))}
             </View>
+            {validationErrors.photos && <Text style={styles.errorText}>{validationErrors.photos}</Text>}
             
             <Text style={styles.photoCountText}>
               {formData.photos.filter(p => p !== null).length}/6 photos selected
             </Text>
-
-            {/* Test button - temporary */}
-            <TouchableOpacity 
-              style={[styles.button, {backgroundColor: 'blue', marginBottom: 10}]}
-              onPress={testPhotoUpload}
-            >
-              <Text style={styles.buttonText}>🧪 Test Photo Upload</Text>
-            </TouchableOpacity>
           </View>
         );
       
@@ -661,7 +731,6 @@ const pickImage = async (index) => {
               <Text style={styles.reviewValue}>{formData.age}</Text>
             </View>
             
-            {/* NEW BIO REVIEW */}
             <View style={styles.reviewSection}>
               <Text style={styles.reviewLabel}>Bio:</Text>
               <Text style={styles.reviewValue}>{formData.bio || 'Not added'}</Text>
@@ -672,7 +741,6 @@ const pickImage = async (index) => {
               <Text style={styles.reviewValue}>{formData.gender.join(', ') || 'Not specified'}</Text>
             </View>
             
-            {/* NEW GENDER TOGGLE REVIEW */}
             <View style={styles.reviewSection}>
               <Text style={styles.reviewLabel}>Show Gender:</Text>
               <Text style={styles.reviewValue}>{formData.showGender ? 'Yes' : 'No'}</Text>
@@ -776,11 +844,20 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
   },
+  inputError: {
+    borderColor: "#ff4458",
+  },
   optionsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "flex-start",
     marginBottom: 15,
+  },
+  optionsContainerError: {
+    borderWidth: 1,
+    borderColor: "#ff4458",
+    borderRadius: 12,
+    padding: 10,
   },
   optionButton: {
     paddingVertical: 12,
@@ -821,6 +898,12 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     justifyContent: "space-between",
     marginVertical: 20,
+  },
+  photosContainerError: {
+    borderWidth: 1,
+    borderColor: "#ff4458",
+    borderRadius: 12,
+    padding: 10,
   },
   photoSlot: {
     width: "30%",
@@ -944,5 +1027,11 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
+  },
+  errorText: {
+    color: "#ff4458",
+    fontSize: 14,
+    marginBottom: 10,
+    marginLeft: 5,
   },
 });

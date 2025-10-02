@@ -5,7 +5,7 @@ import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View }
 import { useAuth } from '../context/AuthContext';
 
 
-const BASE_URL = "http://192.168.249.38:3000";
+const BASE_URL = "http://192.168.249.175:3000";
 
 export default function Matches() {
   const router = useRouter();

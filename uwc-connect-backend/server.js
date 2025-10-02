@@ -1,4 +1,4 @@
-// server.js
+// server.js - FIXED VERSION
 import AWS from "aws-sdk";
 import bodyParser from "body-parser";
 import cors from "cors";
@@ -259,7 +259,7 @@ app.post("/login", (req, res) => {
   res.json({ success: true });
 });
 
-// Profile setup with S3 upload - IMPROVED WITH BETTER LOGGING
+// Profile setup with S3 upload - IMPROVED RETURN DATA
 app.post("/profile", upload.array("photos", 6), async (req, res) => {
   console.log('📝 Profile setup request received:', { 
     email: req.query.email, 
@@ -292,6 +292,8 @@ app.post("/profile", upload.array("photos", 6), async (req, res) => {
 
     // Upload photos to AWS S3 with better error handling
     const photoData = [];
+    let uploadedCount = 0;
+    
     if (req.files && req.files.length > 0) {
       console.log(`📸 Processing ${req.files.length} photos...`);
       
@@ -300,9 +302,11 @@ app.post("/profile", upload.array("photos", 6), async (req, res) => {
           console.log(`🖼️ Uploading: ${file.originalname}, Size: ${file.size}, Mimetype: ${file.mimetype}`);
           const result = await uploadToS3(file, file.originalname);
           photoData.push(result);
+          uploadedCount++;
           console.log(`✅ Photo uploaded successfully: ${file.originalname}`);
         } catch (error) {
           console.error('❌ Failed to upload photo:', error.message);
+          // Continue with other photos even if one fails
         }
       }
     } else {
@@ -317,6 +321,7 @@ app.post("/profile", upload.array("photos", 6), async (req, res) => {
         interests;
     }
 
+    // Update user profile with photo URLs
     user.profile = {
       name,
       surname,
@@ -334,11 +339,21 @@ app.post("/profile", upload.array("photos", 6), async (req, res) => {
       photoKeys: photoData.map(data => data.key),
     };
 
-    console.log('✅ Profile saved successfully for:', email);
-    res.json({ success: true, message: "Profile saved successfully", photosUploaded: photoData.length });
+    console.log('✅ Profile saved successfully for:', email, `(${uploadedCount} photos uploaded)`);
+    
+    res.json({ 
+      success: true, 
+      message: "Profile saved successfully", 
+      photosUploaded: uploadedCount,
+      profile: user.profile // Return the profile data
+    });
+    
   } catch (error) {
     console.error("❌ Profile setup error:", error);
-    res.json({ success: false, message: "Server error" });
+    res.status(500).json({ 
+      success: false, 
+      message: "Server error: " + error.message 
+    });
   }
 });
 
@@ -384,31 +399,54 @@ app.get("/profiles", (req, res) => {
   res.json(profiles);
 });
 
-// Record a like
+// Record a like - FIXED VERSION
 app.post("/like", (req, res) => {
   console.log('💖 Like request:', req.body);
   
   const { fromEmail, toEmail } = req.body;
-  if (!fromEmail || !toEmail) return res.json({ success: false, message: "Missing emails" });
+  
+  if (!fromEmail || !toEmail) {
+    console.log('❌ Missing emails in like request');
+    return res.status(400).json({ 
+      success: false, 
+      message: "Missing emails" 
+    });
+  }
 
+  // Add the like
   likes.push({ fromEmail, toEmail });
+  console.log('✅ Like recorded from:', fromEmail, 'to:', toEmail);
 
   // Check for mutual like
   const mutual = likes.find(l => l.fromEmail === toEmail && l.toEmail === fromEmail);
+  let isMatch = false;
+  
   if (mutual) {
     const fromUser = users.find(u => u.email === fromEmail);
     const toUser = users.find(u => u.email === toEmail);
+    
     if (fromUser && toUser) {
       fromUser.matches = fromUser.matches || [];
       toUser.matches = toUser.matches || [];
-      if (!fromUser.matches.includes(toUser.email)) fromUser.matches.push(toUser.email);
-      if (!toUser.matches.includes(fromUser.email)) toUser.matches.push(fromUser.email);
+      
+      if (!fromUser.matches.includes(toUser.email)) {
+        fromUser.matches.push(toUser.email);
+      }
+      if (!toUser.matches.includes(fromUser.email)) {
+        toUser.matches.push(fromUser.email);
+      }
+      
+      isMatch = true;
       console.log('💑 Mutual match found:', fromEmail, 'and', toEmail);
     }
   }
 
-  console.log('✅ Like recorded from:', fromEmail, 'to:', toEmail);
-  res.json({ success: true });
+  // ALWAYS return JSON response
+  res.json({ 
+    success: true, 
+    message: "Like recorded successfully",
+    match: isMatch
+  });
 });
 
 // Get matches
@@ -444,23 +482,30 @@ app.post("/discover", (req, res) => {
     
     if (!email) {
       console.log('❌ Missing email in discover request');
-      return res.json({ success: false, message: "Email required" });
+      return res.status(400).json({ 
+        success: false, 
+        message: "Email required" 
+      });
     }
 
     // Get all profiles EXCEPT the current user's profile
     const discoverProfiles = users
       .filter(user => user.profile && user.email !== email)
-      .map(user => ({
-        email: user.email,
-        ...user.profile,
-        // Refresh pre-signed URLs
-        photos: user.profile.photos.map((photo, index) => {
+      .map(user => {
+        // Ensure photos array exists and refresh URLs
+        const photos = (user.profile.photos || []).map((photo, index) => {
           if (user.profile.photoKeys && user.profile.photoKeys[index]) {
             return generatePresignedUrl(user.profile.photoKeys[index]) || photo;
           }
           return photo;
-        })
-      }));
+        }).filter(photo => photo); // Remove any null/undefined photos
+        
+        return {
+          email: user.email,
+          ...user.profile,
+          photos: photos
+        };
+      });
 
     console.log(`✅ Discover returning ${discoverProfiles.length} profiles for:`, email);
     
@@ -477,6 +522,134 @@ app.post("/discover", (req, res) => {
       error: error.message 
     });
   }
+});
+
+// Get all likes data
+app.get("/likes", (req, res) => {
+  console.log('💖 Get all likes request');
+  res.json(likes);
+});
+
+// Get messages between users - FIXED ENDPOINT
+app.get("/messages", (req, res) => {
+  const { user1, user2 } = req.query;
+  console.log('💬 Get messages request:', { user1, user2 });
+  
+  if (!user1 || !user2) {
+    return res.status(400).json({ 
+      success: false, 
+      message: "Both users required" 
+    });
+  }
+  
+  // Filter messages between these two users
+  const userMessages = chats.filter(chat => 
+    (chat.sender === user1 && chat.receiver === user2) ||
+    (chat.sender === user2 && chat.receiver === user1)
+  ).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  
+  console.log(`✅ Returning ${userMessages.length} messages between ${user1} and ${user2}`);
+  res.json({ 
+    success: true, 
+    messages: userMessages 
+  });
+});
+
+// Send a message - FIXED ENDPOINT
+app.post("/messages", (req, res) => {
+  console.log('📤 Send message request:', req.body);
+  
+  const { sender, receiver, text, timestamp } = req.body;
+  
+  if (!sender || !receiver || !text) {
+    return res.status(400).json({ 
+      success: false, 
+      message: "Missing required fields" 
+    });
+  }
+  
+  const newMessage = {
+    id: Date.now(),
+    sender,
+    receiver,
+    text,
+    timestamp: timestamp || new Date().toISOString()
+  };
+  
+  chats.push(newMessage);
+  console.log('✅ Message sent from', sender, 'to', receiver);
+  
+  res.json({ 
+    success: true, 
+    message: "Message sent successfully",
+    messageId: newMessage.id
+  });
+});
+
+// NEW: Compatibility endpoints for /chat
+app.get("/chat", (req, res) => {
+  const { user1, user2 } = req.query;
+  console.log('💬 Get chat request (compatibility):', { user1, user2 });
+  
+  if (!user1 || !user2) {
+    return res.status(400).json({ 
+      success: false, 
+      message: "Both users required" 
+    });
+  }
+  
+  // Filter messages between these two users
+  const userMessages = chats.filter(chat => 
+    (chat.sender === user1 && chat.receiver === user2) ||
+    (chat.sender === user2 && chat.receiver === user1)
+  ).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  
+  console.log(`✅ Returning ${userMessages.length} messages between ${user1} and ${user2}`);
+  res.json(userMessages);
+});
+
+// NEW: Compatibility endpoint for sending chat messages
+app.post("/chat", (req, res) => {
+  console.log('📤 Send chat request (compatibility):', req.body);
+  
+  const { fromEmail, toEmail, message } = req.body;
+  
+  if (!fromEmail || !toEmail || !message) {
+    return res.status(400).json({ 
+      success: false, 
+      message: "Missing required fields" 
+    });
+  }
+  
+  const newMessage = {
+    id: Date.now(),
+    sender: fromEmail,
+    receiver: toEmail,
+    text: message,
+    timestamp: new Date().toISOString()
+  };
+  
+  chats.push(newMessage);
+  console.log('✅ Chat message sent from', fromEmail, 'to', toEmail);
+  
+  res.json({ 
+    success: true, 
+    message: "Message sent successfully",
+    messageId: newMessage.id
+  });
+});
+
+// NEW: Get likes for specific user
+app.get("/likes/:email", (req, res) => {
+  const { email } = req.params;
+  console.log('💖 Get likes for user:', email);
+  
+  const userLikes = {
+    received: likes.filter(like => like.toEmail === email),
+    sent: likes.filter(like => like.fromEmail === email)
+  };
+  
+  res.json(userLikes);
 });
 
 // Delete account with S3 cleanup
@@ -592,6 +765,29 @@ app.get("/health", async (req, res) => {
   }
 });
 
+// Debug endpoint to check current state
+app.get("/debug", (req, res) => {
+  console.log('🐛 Debug request');
+  
+  const debugData = {
+    users: users.map(u => ({
+      email: u.email,
+      hasProfile: !!u.profile,
+      profile: u.profile ? {
+        name: u.profile.name,
+        photosCount: u.profile.photos ? u.profile.photos.length : 0,
+        photoKeysCount: u.profile.photoKeys ? u.profile.photoKeys.length : 0
+      } : null,
+      matches: u.matches || []
+    })),
+    likes: likes,
+    chatsCount: chats.length,
+    otpStorageCount: Object.keys(otpStorage).length
+  };
+  
+  res.json(debugData);
+});
+
 // Start server
 app.listen(PORT, "0.0.0.0", () => {
   console.log('🚀 Server starting...');
@@ -600,4 +796,25 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`☁️ S3 Bucket: ${S3_BUCKET || 'Not configured'}`);
   console.log(`🔧 Mode: ${process.env.NODE_ENV || 'production'}`);
   console.log('📝 Logging level: Enhanced development logging');
+  
+  // Log all available endpoints
+  console.log('\n📋 Available Endpoints:');
+  console.log('  POST /send-otp');
+  console.log('  POST /verify-otp');
+  console.log('  POST /login');
+  console.log('  POST /profile');
+  console.log('  GET  /profile/:email');
+  console.log('  GET  /profiles');
+  console.log('  POST /like');
+  console.log('  GET  /matches');
+  console.log('  POST /discover');
+  console.log('  GET  /likes');
+  console.log('  GET  /messages');
+  console.log('  POST /messages');
+  console.log('  GET  /chat');
+  console.log('  POST /chat');
+  console.log('  GET  /likes/:email');
+  console.log('  POST /delete-account');
+  console.log('  GET  /health');
+  console.log('  GET  /debug');
 });

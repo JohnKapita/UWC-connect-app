@@ -12,7 +12,7 @@ export default function Index() {
         style={styles.logo}
       />
       
-      <Text style={styles.title}>Welcome to UWC Connect fhjdgbfhgfh</Text>
+      <Text style={styles.title}>Welcome to Campus Connect </Text>
       <Text style={styles.subtitle}>Your community, your network.</Text>
 
       <View style={styles.buttonContainer}>
